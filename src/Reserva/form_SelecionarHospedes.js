@@ -1,6 +1,8 @@
 async function adicionarHospedeDoHotel(primaryControl) {
     const formContext = primaryControl;
 
+    const limparId = id => (id || "").replace(/[{}]/g, "").toLowerCase();
+
     const campoHotel = formContext.getAttribute("hsp_hotel");
     if (!campoHotel) {
         await Xrm.Navigation.openAlertDialog({ text: "Campo Hotel não encontrado no formulário da Reserva." });
@@ -13,13 +15,45 @@ async function adicionarHospedeDoHotel(primaryControl) {
         return;
     }
 
-    const hotelId = hotel[0].id.replace(/[{}]/g, "").toLowerCase();
-    const reservaId = formContext.data.entity.getId().replace(/[{}]/g, "");
+    const hotelId = limparId(hotel[0].id);
+    const reservaId = limparId(formContext.data.entity.getId());
 
     if (!reservaId) {
         await Xrm.Navigation.openAlertDialog({ text: "Salve a reserva antes de adicionar hóspedes." });
         return;
     }
+
+    const campoPrincipal = formContext.getAttribute("hsp_hospede");
+    const principal = campoPrincipal ? campoPrincipal.getValue() : null;
+    const principalId = principal ? limparId(principal[0].id) : null;
+
+    const reserva = await Xrm.WebApi.retrieveRecord(
+        "hsp_reserva",
+        reservaId,
+        "?$select=hsp_reservaid&$expand=hsp_hospede_reserva($select=contactid)"
+    );
+    const excluir = new Set(
+        (reserva["hsp_hospede_reserva"] || []).map(h => limparId(h.contactid))
+    );
+    if (principalId) excluir.add(principalId);
+
+    const respContatos = await Xrm.WebApi.retrieveMultipleRecords(
+        "contact",
+        `?$select=contactid&$filter=_hsp_hotel_value eq ${hotelId}`
+    );
+
+    const elegiveis = respContatos.entities
+        .map(c => limparId(c.contactid))
+        .filter(id => !excluir.has(id));
+
+    if (elegiveis.length === 0) {
+        await Xrm.Navigation.openAlertDialog({
+            text: "Não há hóspedes disponíveis neste hotel para adicionar."
+        });
+        return;
+    }
+
+    const valoresIn = elegiveis.map(id => `<value>${id}</value>`).join("");
 
     const selecionados = await Xrm.Utility.lookupObjects({
         allowMultiSelect: true,
@@ -28,7 +62,10 @@ async function adicionarHospedeDoHotel(primaryControl) {
         disableMru: true,
         filters: [{
             entityLogicalName: "contact",
-            filterXml: `<filter><condition attribute="hsp_hotel" operator="eq" value="${hotelId}"/></filter>`
+            filterXml:
+                `<filter type='and'>` +
+                `<condition attribute='contactid' operator='in'>${valoresIn}</condition>` +
+                `</filter>`
         }]
     });
     if (!selecionados || selecionados.length === 0) return;
@@ -36,7 +73,9 @@ async function adicionarHospedeDoHotel(primaryControl) {
     const rejeitados = [];
 
     for (const h of selecionados) {
-        const contactId = h.id.replace(/[{}]/g, "");
+        const contactId = limparId(h.id);
+
+        if (excluir.has(contactId)) continue;
 
         const contato = await Xrm.WebApi.retrieveRecord(
             "contact", contactId, "?$select=_hsp_hotel_value,fullname"
