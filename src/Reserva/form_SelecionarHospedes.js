@@ -3,6 +3,15 @@ async function adicionarHospedeDoHotel(primaryControl) {
 
     const limparId = id => (id || "").replace(/[{}]/g, "").toLowerCase();
 
+    const STATUS_PENDENTE = 1;
+    const status = formContext.getAttribute("hsp_statusreserva");
+    if (!status || status.getValue() !== STATUS_PENDENTE) {
+        await Xrm.Navigation.openAlertDialog({
+            text: "Só é possível adicionar hóspedes com a reserva em Pendente."
+        });
+        return;
+    }
+
     const campoHotel = formContext.getAttribute("hsp_hotel");
     if (!campoHotel) {
         await Xrm.Navigation.openAlertDialog({ text: "Campo Hotel não encontrado no formulário da Reserva." });
