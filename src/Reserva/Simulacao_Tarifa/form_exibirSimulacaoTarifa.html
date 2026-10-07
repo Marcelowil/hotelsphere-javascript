@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; margin: 0; padding: 6px; color: #242424; background: transparent; }
+  .msg { padding: 8px 12px; border-radius: 4px; margin-bottom: 8px; border-left: 4px solid; }
+  .msg.erro { background: #fde7e9; border-color: #d13438; }
+  .msg.aviso { background: #fff4ce; border-color: #c19c00; }
+  .msg.info { background: #eff6fc; border-color: #0078d4; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; background: #f3f2f1; padding: 6px 8px; border-bottom: 2px solid #d2d0ce; }
+  td { padding: 6px 8px; border-bottom: 1px solid #edebe9; }
+  td.valor, th.valor { text-align: right; }
+  tr.faltante td { background: #fde7e9; color: #a4262c; }
+  .resumo { margin-top: 8px; display: flex; gap: 24px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="mensagens"></div>
+<div id="conteudo"></div>
+
+<script>
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function moeda(v) {
+    return v === null || v === undefined ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
+  window.HSSimulacao = {
+    render: function (d) {
+      var msgs = (d.mensagens || []).map(function (m) {
+        return '<div class="msg ' + m.tipo + '">' + esc(m.texto) + "</div>";
+      }).join("");
+      document.getElementById("mensagens").innerHTML = msgs;
+
+      if (!d.linhas || d.linhas.length === 0) {
+        document.getElementById("conteudo").innerHTML = "";
+        return;
+      }
+      var linhas = d.linhas.map(function (l) {
+        return '<tr class="' + (l.faltante ? "faltante" : "") + '"><td>' + esc(l.data) + "</td><td>" +
+          (l.faltante ? "Sem tarifa cadastrada" : esc(l.tarifa)) + '</td><td class="valor">' +
+          (l.faltante ? "—" : moeda(l.valor)) + "</td></tr>";
+      }).join("");
+
+      var resumo = (d.total !== null && d.total !== undefined)
+        ? '<div class="resumo"><span>Diárias: ' + d.noites + "</span><span>Média: " + moeda(d.media) +
+          "</span><span>Total estimado: " + moeda(d.total) + "</span></div>"
+        : "";
+
+      document.getElementById("conteudo").innerHTML =
+        '<table><thead><tr><th>Data</th><th>Tarifa encontrada</th><th class="valor">Valor</th></tr></thead><tbody>' +
+        linhas + "</tbody></table>" + resumo;
+    }
+  };
+</script>
+</body>
+</html>
